@@ -1,11 +1,12 @@
 <template>
-
   <div
     class="chat-warp"
     :class="{ hiddenoverflow: !loading && cloneData && cloneData.length === 0 }"
-    :style="{ height: clientHeight - 26 - (inputRef?inputRef.height:54)+ 'px' }"
+    :style="{
+      height: clientHeight - 26 - (inputRef ? inputRef.height : 54) + 'px',
+    }"
     ref="chatPanelRef"
-    v-show="(clientHeight - 26 - (inputRef?inputRef.height: 54))>0"
+    v-show="clientHeight - 26 - (inputRef ? inputRef.height : 54) > 0"
   >
     <ChatHeader v-model="tools" />
 
@@ -14,6 +15,7 @@
         <ChatReqContent
           v-if="item.role === 'user'"
           :index="i"
+          ref="inputRefs"
           :modelValue="item"
           @update:modelValue="(v) => (cloneData[i] = v)"
           @apply-edit="applyEdit"
@@ -23,6 +25,7 @@
           :isLast="cloneData.length - 1 === i"
           :generating="generating"
           :value="item"
+          :style="'--chat-requst-height:' + lastReqChatItemHeight + 'px'"
           @regenerate="regenerate"
         />
         <ChatFunContent
@@ -32,6 +35,7 @@
           :loadfun="loadfun"
           :modelValue="item.content.content"
           :funcall="item.content.functionCall"
+          :style="'--chat-requst-height:' + lastReqChatItemHeight + 'px'"
           @update:modelValue="(v) => updateItem(item, v)"
           @regenerate="regenerate"
           @nextgenerate="nextgenerate"
@@ -46,12 +50,12 @@
           @click="(item) => goChat(item, router)"
         />
       </template>
-      <div v-if="generating" class="text-align mt-3">
-        <v-btn prepend-icon="mdi-stop-circle-outline"   @click="clickBtn"
-        >停止生成</v-btn
+      <div v-if="generating" class="text-align my-3">
+        <v-btn prepend-icon="mdi-stop-circle-outline" @click="clickBtn"
+          >停止生成</v-btn
         >
       </div>
-      <div v-else-if="regenerateBtn" class="text-align mt-3">
+      <div v-else-if="regenerateBtn" class="text-align my-3">
         <v-btn prepend-icon="mdi-replay" color="primary" @click="regenerate"
           >重新生成</v-btn
         >
@@ -69,14 +73,11 @@
       v-model:tools="tools"
     />
     <div class="text-center tip">
-      <small
-        >如发现站点功能异常，<a href="https://zhidayingxiao.cn/to/06g6y3"
+      <!-- <small
+        >如发现站点功能异常，<a href="https://zhidayingxiao.cn/to/06g6xX"
           >加微信群</a
-        >或<a
-          href="http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=6fc5B9qUuEANrhxu_NoFxYf0E7GRv00D&authKey=usE9I3Rs9Dca8Q3aC%2BpbUyI4WjF0Eahjku8psS5%2FyJ6axVKCTJuqqFEw8vLAGv6S&noverify=0&group_code=574528625"
-          >qq群:</a
-        >574528625截图反馈。Eywa可能会犯错误。请考虑核实重要信息。
-      </small>
+        >。极速ai可能会犯错误。请考虑核实重要信息。
+      </small> -->
     </div>
   </div>
 </template>
@@ -86,8 +87,8 @@ import {
   onMounted,
   ref,
   watch,
-  unref,
   onUnmounted,
+  isProxy,
   toRaw,
 } from "vue";
 import { useRouter } from "vue-router";
@@ -104,7 +105,7 @@ import ChatExplore from "./sub/ChatExplore.vue";
 import ChatInput from "./sub/ChatInput.vue";
 import { createChat } from "@/service/chatService";
 const props = defineProps([
-  "data",
+  "modelValue",
   "chatId",
   "prompts",
   "loading",
@@ -112,12 +113,7 @@ const props = defineProps([
   "explore",
   "loadfun",
 ]);
-const emit = defineEmits([
-  "addItems",
-  "updateItem",
-  "replaceItems",
-  "selectedUserType",
-]);
+const emit = defineEmits(["update:modelValue", "selectedUserType"]);
 const router = useRouter();
 const value = ref("");
 const generating = ref(false);
@@ -128,10 +124,15 @@ const editIndex = ref(-1);
 const tools = ref(false);
 const regenerateBtn = ref(false);
 const clientHeight = ref(window.document.body.clientHeight);
+const inputRefs = ref([]);
+const lastReqChatItemHeight = ref(0);
 
 let controller = new AbortController();
 
 const scrollToBottom = () => {
+  if (scrollIsUp) {
+    return;
+  }
   const domWrapper = chatPanelRef.value;
   const currentScroll = domWrapper.scrollTop; // 已经被卷掉的高度
   const clientHeight = domWrapper.offsetHeight; // 容器高度
@@ -144,19 +145,24 @@ const scrollToBottom = () => {
 
 async function updateItem(item, v) {
   item.content.content = toRaw(v);
-  emit("updateItem", clone(item));
+  setTimeout(() => {
+    emit("update:modelValue", clone(cloneData));
+  }, 1000);
+  // emit("updateItem", clone(item));
 }
 
 async function applyEdit(index, next) {
   cloneData.value = cloneData.value.slice(0, index + 1);
   editIndex.value = -1;
-  const lastId = cloneData.value[cloneData.value.length - 1].id;
+  // const lastId = cloneData.value[cloneData.value.length - 1].id;
   next();
   //重新生成
-  await gen();
-  // console.log(cloneData);
-  //替换所有
-  emit("replaceItems", lastId, clone(unref(cloneData)).slice(index));
+  try {
+    await gen();
+    //替换所有
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 let genFuns = [];
@@ -172,22 +178,35 @@ function clickBtn() {
 }
 
 async function send(text) {
+  scrollIsUp = false;
   text = text || value.value;
   text = text.trim();
   const req = { role: "user", content: text, chatId: props.chatId };
   cloneData.value.push(req);
   value.value = "";
-  await nextTick(scrollToBottom);
-  const resItem = await gen();
-  emit("addItems", clone([req, resItem]));
+  nextTick(scrollToBottom);
+  try {
+    await gen();
+    //替换所有
+  } catch (e) {
+    console.error(e);
+  }
 }
 
-function initEl() {
+function initEl(disalbeScroll) {
   generating.value = false;
-  cloneData.value = props.data;
+  cloneData.value = clone(props.modelValue);
   inputRef.value.inputRef && inputRef.value.inputRef.focus();
+  setTimeout(() => {
+    if (inputRefs.value && inputRefs.value.length) {
+      lastReqChatItemHeight.value =
+        inputRefs.value[inputRefs.value.length - 1].height;
+    }
+    if (!disalbeScroll) {
+      scrollToBottom();
+    }
+  }, 10);
   nextTick(() => {
-    scrollToBottom();
     setTimeout(() => {
       const buttons = document.querySelectorAll("pre");
       buttons.forEach((btn) => {
@@ -201,21 +220,34 @@ function initEl() {
 
 async function regenerate() {
   // 移除最后回答
-  const lastId = cloneData.value[cloneData.value.length - 1].id;
+  // const lastId = cloneData.value[cloneData.value.length - 1].id;
   cloneData.value.pop();
-  let index = cloneData.value.length;
-  //重新生成
-  await gen();
-  //替换所有
-  emit("replaceItems", lastId, clone(unref(cloneData)).slice(index));
+  // let index = cloneData.value.length;
+  try {
+    //重新生成
+    await gen();
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 async function nextgenerate(data, enabledTools) {
-  const resItem = await gen(data, enabledTools);
-  emit("addItems", clone([resItem]));
+  try {
+    await gen(data, enabledTools);
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 async function gen(data, enabledTools) {
+  setTimeout(() => {
+    if (inputRefs.value) {
+      lastReqChatItemHeight.value =
+        inputRefs.value[inputRefs.value.length - 1].height;
+    }
+  }, 100);
+
+  scrollIsUp = false;
   regenerateBtn.value = false;
   genFuns = [];
   if (generating.value) {
@@ -228,30 +260,18 @@ async function gen(data, enabledTools) {
   const resItem = { role: "model", content: "", chatId: props.chatId };
   try {
     cloneData.value.push(resItem);
+    nextTick(scrollToBottom);
     controller = new AbortController();
-    let content = "";
     enabledTools =
       typeof enabledTools == "boolean" ? enabledTools : tools.value;
-    for await (const line of llm(reqData, controller.signal, enabledTools)) {
+    for await (const line of llm(
+      reqData,
+      controller.signal,
+      enabledTools
+      // "openai"
+    )) {
       if (line.type == "text") {
-        for (let chat of line.data) {
-          if (generating.value) {
-            i += 20;
-            const g = () => {
-              if (generating.value) {
-                content += chat;
-                resItem.content = content;
-                cloneData.value.splice(
-                  cloneData.value.length - 1,
-                  cloneData.value.length - 1,
-                  Object.assign({}, resItem)
-                );
-                nextTick(scrollToBottom);
-              }
-            };
-            genFuns.push(setTimeout(g, i));
-          }
-        }
+        resItem.content = line.data;
       } else {
         resItem.role = "functionCall";
         resItem.content = {
@@ -261,26 +281,36 @@ async function gen(data, enabledTools) {
       }
     }
   } catch (e) {
-    console.error(e);
-    const eText = e.toString();
+    let eText = e.toString();
     if (eText.includes("The user aborted a request")) {
-      alert({ text: "取消成功" });
+      eText = "取消成功";
+    } else if (
+      eText.includes(
+        "An internal error has occurred. Please retry or report in"
+      ) ||
+      eText.includes("The model is overloaded")
+    ) {
+      eText = "提问太快了，请稍后重试";
     } else if (eText.includes("API key not valid")) {
-      alert({ text: "点击左下角设置您的key", type: "warn" });
+      eText = "点击左下角设置您的key";
     } else {
       // alert({ text: "抱歉，请重新试下或换个问法", type: "warn" });
       regenerateBtn.value = true;
     }
-    resItem.content = "抱歉，请重新试下或换个问法";
+    resItem.content = eText || "抱歉，请重新生成";
+    alert({ text: eText, type: "warn" });
     return new Promise((_, rej) => {
       setTimeout(() => {
+        emit("update:modelValue", clone(cloneData));
         generating.value = false;
         inputRef.value.inputRef && inputRef.value.inputRef.focus();
       }, 500);
-
-      rej(e.toString());
+      rej(eText);
     });
   }
+  nextTick(() => {
+    emit("update:modelValue", clone(cloneData));
+  });
   return new Promise((resolve) => {
     setTimeout(() => {
       setTimeout(() => {
@@ -290,6 +320,93 @@ async function gen(data, enabledTools) {
     }, i + 300);
   });
 }
+
+// async function gen(data, enabledTools) {
+//   scrollIsUp = false;
+//   regenerateBtn.value = false;
+//   genFuns = [];
+//   if (generating.value) {
+//     alert({ text: "请等回复完后再重试" });
+//     return;
+//   }
+//   let i = 0;
+//   generating.value = true;
+//   const reqData = multiTurn(data);
+//   const resItem = { role: "model", content: "", chatId: props.chatId };
+//   try {
+//     cloneData.value.push(resItem);
+//     controller = new AbortController();
+//     let content = "";
+//     enabledTools =
+//       typeof enabledTools == "boolean" ? enabledTools : tools.value;
+//     for await (const line of llm(reqData, controller.signal, enabledTools)) {
+//       if (line.type == "text") {
+//         for (let chat of line.data) {
+//           if (generating.value) {
+//             i += 20;
+//             const g = () => {
+//               if (generating.value) {
+//                 content += chat;
+//                 resItem.content = content;
+//                 cloneData.value.splice(
+//                   cloneData.value.length - 1,
+//                   cloneData.value.length - 1,
+//                   Object.assign({}, resItem)
+//                 );
+//                 nextTick(scrollToBottom);
+//               }
+//             };
+//             genFuns.push(setTimeout(g, i));
+//           }
+//         }
+//       } else {
+//         resItem.role = "functionCall";
+//         resItem.content = {
+//           functionCall: line.data,
+//           content: "",
+//         };
+//       }
+//     }
+//   } catch (e) {
+//     let eText = e.toString();
+//     if (eText.includes("The user aborted a request")) {
+//       eText = "取消成功";
+//     } else if (
+//       eText.includes(
+//         "An internal error has occurred. Please retry or report in"
+//       ) ||
+//       eText.includes("The model is overloaded")
+//     ) {
+//       eText = "提问太快了，请稍后重试";
+//     } else if (eText.includes("API key not valid")) {
+//       eText = "点击左下角设置您的key";
+//     } else {
+//       // alert({ text: "抱歉，请重新试下或换个问法", type: "warn" });
+//       regenerateBtn.value = true;
+//     }
+//     resItem.content = eText || "抱歉，请重新生成";
+//     alert({ text: eText, type: "warn" });
+//     return new Promise((_, rej) => {
+//       setTimeout(() => {
+//         emit("update:modelValue", clone(cloneData));
+//         generating.value = false;
+//         inputRef.value.inputRef && inputRef.value.inputRef.focus();
+//       }, 500);
+//       rej(eText);
+//     });
+//   }
+//   nextTick(() => {
+//     emit("update:modelValue", clone(cloneData));
+//   });
+//   return new Promise((resolve) => {
+//     setTimeout(() => {
+//       setTimeout(() => {
+//         generating.value = false;
+//       }, 500);
+//       resolve(resItem);
+//     }, i + 300);
+//   });
+// }
 
 function multiTurn(data) {
   let key = "";
@@ -350,11 +467,17 @@ async function toChat(item) {
 }
 
 function clone(o) {
-  return JSON.parse(JSON.stringify(o));
+  if (o.value) {
+    return JSON.parse(
+      JSON.stringify(isProxy(o.value) ? toRaw(o.value) : o.value)
+    );
+  } else {
+    return JSON.parse(JSON.stringify(o));
+  }
 }
 
 let initFun = null;
-
+let scrollIsUp = false;
 onMounted(() => {
   watch(
     () => props.chatId,
@@ -366,19 +489,33 @@ onMounted(() => {
     }
   );
   watch(
-    () => props.data,
+    () => props.modelValue,
     () => {
-      nextTick(initEl);
+      nextTick(() => initEl(true));
     }
   );
 
   initFun = setTimeout(() => {
     initEl();
+    setTimeout(() => {
+      if (sessionStorage.getItem("sendable")) {
+        sessionStorage.removeItem("sendable");
+        gen();
+      }
+    }, 100);
   }, 30);
 
-  window.addEventListener('resize',()=>{
-    console.log('resize')
+  window.addEventListener("resize", () => {
     clientHeight.value = window.innerHeight;
+  });
+  const domWrapper = chatPanelRef.value;
+  let lastScrollTop = 0;
+  domWrapper.addEventListener("scroll", () => {
+    let up = domWrapper.scrollTop < lastScrollTop;
+    if (up) {
+      scrollIsUp = true;
+    }
+    lastScrollTop = domWrapper.scrollTop;
   });
 });
 

@@ -1,52 +1,57 @@
 <template>
   <div class="chat-item-warp">
-    <v-avatar color="primary" size="small"
-      ><v-icon icon="mdi-link"></v-icon
-    ></v-avatar>
+    <v-img
+      :class="generating && isLast ? 'opacity' : ''"
+      src="/logo.png"
+      style="width: 30px; height: 30px"
+    ></v-img>
     <div class="chat-item-message">
-      <div class="name">Eywa</div>
-      <div class="message"  v-html="
-            micromark(
-              item.content +
-                (isLast && generating ? '<span class=generating></span>' : '')
-            )
-          ">
+      <div :class="generating && isLast ? 'opacity' : ''" class="name">
+        极速AI
       </div>
-      <div class="message-actions">
-        <div class="actions-warp" v-if="!generating">
-          <v-tooltip text="复制" location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn
-                v-bind="props"
-                icon="mdi-content-copy"
-                variant="text"
-                size="small"
-                @click="copy(micromark(item.content).replace(/<[^>]*>/g, ''))"
-              ></v-btn>
-            </template>
-          </v-tooltip>
-          <v-tooltip text="复制成markdown" location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn
-                v-bind="props"
-                icon=" mdi-language-markdown-outline"
-                variant="text"
-                size="small"
-                @click="copy(item.content)"
-              ></v-btn>
-            </template>
-          </v-tooltip>
-          <v-tooltip text="重新生成" location="bottom" v-if="isLast">
-            <template v-slot:activator="{ props }">
-              <v-btn
-                v-bind="props"
-                icon=" mdi-replay"
-                variant="text"
-                size="small"
-                @click="emit('regenerate', '')"
-              ></v-btn>
-            </template>
-          </v-tooltip>
+      <!-- -->
+      <div v-if="generating && isLast" class="msgloading opacity">
+        <v-skeleton-loader boilerplate type="article"></v-skeleton-loader>
+        <v-skeleton-loader boilerplate type="paragraph"></v-skeleton-loader>
+      </div>
+      <div :class="isLast ? 'msgwap' : ''" v-else>
+        <div class="message" v-html="micromark(item.content)"></div>
+        <div class="message-actions">
+          <div class="actions-warp" v-if="!generating">
+            <v-tooltip text="复制" location="bottom">
+              <template v-slot:activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon="mdi-content-copy"
+                  variant="text"
+                  size="small"
+                  @click="copy(micromark(item.content).replace(/<[^>]*>/g, ''))"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip text="复制成markdown" location="bottom">
+              <template v-slot:activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon=" mdi-language-markdown-outline"
+                  variant="text"
+                  size="small"
+                  @click="copy(item.content)"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip text="重新生成" location="bottom" v-if="isLast">
+              <template v-slot:activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon=" mdi-replay"
+                  variant="text"
+                  size="small"
+                  @click="emit('regenerate', '')"
+                ></v-btn>
+              </template>
+            </v-tooltip>
+          </div>
         </div>
       </div>
     </div>
@@ -77,8 +82,14 @@ function copy(text) {
     font-weight: 600;
     margin-bottom: 0.3rem;
   }
-  .message{
-    overflow: auto
+  .message {
+    overflow: hidden;
+  }
+  .msgloading {
+    min-height: calc(100vh - 56px - 78px - 100px - var(--chat-requst-height));
+  }
+  .msgwap {
+    min-height: calc(100vh - 56px - 78px - 50px - var(--chat-requst-height));
   }
   .message-actions {
     display: flex;

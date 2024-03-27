@@ -1,12 +1,13 @@
 import {
-  reqGemini
+  reqGemini,
+  req
 } from '@/api'
 
 const controller = new AbortController();
 
 export const abort = controller.abort
 
-export async function* llm(data, signal = controller.signal, enabledTools = false, type = 'gemi') {
+export async function* llm(data, signal = controller.signal, enabledTools = false, type = 'gemi', model = 'gpt-3.5-turbo') {
   type = localStorage.getItem("llm-model") || "Gemini Pro"
   if (type == 'Gemini Pro') {
     if (enabledTools) {
@@ -67,6 +68,7 @@ export async function* llm(data, signal = controller.signal, enabledTools = fals
       }]
     }
     for await (const line of (await reqGemini(data, signal))) {
+      // console.log(line)
       if (line.includes('{') || line.includes('}')) {
         const start = line.indexOf('{')
         const end = line.lastIndexOf('}')
@@ -101,5 +103,39 @@ export async function* llm(data, signal = controller.signal, enabledTools = fals
 
       }
     }
+  } else if (type == 'openai') {
+    // const path = localStorage.getItem('openai-host') || 'https://justchat.top'
+    // const key = localStorage.getItem('openai-key') || 'sk-3VK7mzraI3j08xFf81283a38Ab434a5cAe910b009448C37f'
+    // let d = (await req(path + '/v1/chat/completions', gemin2chatgptreq(data, model), signal, {
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //     'Authorization': 'Bearer ' + key
+    //   },
+    // }))
+    // yield {
+    //   type: 'text',
+    //   data: d.choices[0].message.content
+    // }
+  }
+  const sendEvent = new Event("llmEnd")
+  document.dispatchEvent(sendEvent)
+}
+
+
+function gemin2chatgptreq(data, model) {
+  console.log(data)
+  let messages = []
+  data.contents.forEach(item => {
+    console.log(item)
+    item.parts.forEach(c => {
+      messages.push({
+        role: item.role == 'user' ? 'user' : 'assistant',
+        content: c.text
+      })
+    })
+  })
+  return {
+    model,
+    messages
   }
 }

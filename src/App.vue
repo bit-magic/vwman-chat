@@ -3,10 +3,19 @@
 </template>
 
 <script setup>
-import { onMounted } from "vue";
-onMounted(() => {
+import { onMounted, provide, ref } from "vue";
+import { getSurplus } from "@/api/surplus.js";
+const surplusText = ref("");
+onMounted(async () => {
   document.body.removeChild(document.getElementById("loading"));
+  document.addEventListener("llmEnd", async () => {
+    surplusText.value = await getSurplus();
+  });
+  if (localStorage.getItem("qaiKey")) {
+    surplusText.value = await getSurplus();
+  }
 });
+provide("surplusText", surplusText);
 </script>
 <style lang="less">
 .warp-sm {
@@ -25,6 +34,11 @@ onMounted(() => {
 
 html {
   overflow-y: auto;
+}
+.text-overflow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tip {
   opacity: 0.8;
@@ -121,9 +135,37 @@ html {
 }
 .message {
   img,
-  pre ,code{
+  pre,
+  code {
     max-width: 100%;
     overflow-y: auto;
+  }
+  /* CSS Table Style */
+  ul li {
+    list-style: none;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+
+  th,
+  td {
+    border: 1px solid rgb(var(--v-theme-surface));
+    padding: 0.5rem;
+  }
+  tr:nth-child(even) {
+    background-color: rgb(var(--v-theme-surface));
+  }
+  th {
+    background-color: rgba(var(--v-theme-on-code), 0.1);
+    text-align: center;
+  }
+
+  td {
+    text-align: center;
   }
 }
 .message ol,
@@ -156,4 +198,36 @@ html {
   }
 }
 //chat end
+.font-sm {
+  font-size: 0.85rem;
+}
+
+.opacity {
+  animation: opacity 2s linear infinite;
+  -webkit-animation: opacity 2s linear infinite;
+}
+
+@keyframes opacity {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+@-webkit-keyframes opacity {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
 </style>
